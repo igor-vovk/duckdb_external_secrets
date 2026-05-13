@@ -6,6 +6,14 @@ EXT_CONFIG=${PROJ_DIR}extension_config.cmake
 
 BUILD_THREADS ?= $(shell sysctl -n hw.logicalcpu 2>/dev/null || nproc 2>/dev/null || echo 4)
 export CMAKE_BUILD_PARALLEL_LEVEL ?= $(BUILD_THREADS)
+ENABLE_EXTENSION_AUTOLOADING ?= 1
+ENABLE_EXTENSION_AUTOINSTALL ?= 1
+
+TEST_ENV_MAKEFILE ?= $(PROJ_DIR)test/local_test_env.mk
+TEST_GOALS := test test_release test_release_internal test_debug test_debug_internal test_reldebug test_reldebug_internal
+ifneq ($(filter $(TEST_GOALS),$(MAKECMDGOALS)),)
+-include $(TEST_ENV_MAKEFILE)
+endif
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)

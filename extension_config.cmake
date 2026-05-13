@@ -4,6 +4,3 @@
 duckdb_extension_load(external_secrets
     SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}
 )
-
-# Any extra extensions that should be built
-# e.g.: duckdb_extension_load(json)
