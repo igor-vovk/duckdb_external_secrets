@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.5)
 
 # Set extension name here
-set(TARGET_NAME waddle)
+set(TARGET_NAME external_secrets)
 
 # Newer Apple Command Line Tools releases can place libc++ headers only inside the SDK.
 # When that happens, add the SDK header path explicitly so DuckDB and the extension can compile.
@@ -35,7 +35,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include_directories(src/include)
 
-set(EXTENSION_SOURCES src/waddle_extension.cpp)
+set(EXTENSION_SOURCES src/external_secrets_extension.cpp)
 
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
 build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})

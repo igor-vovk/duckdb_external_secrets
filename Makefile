@@ -1,7 +1,7 @@
 PROJ_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
 # Configuration of extension
-EXT_NAME=waddle
+EXT_NAME=external_secrets
 EXT_CONFIG=${PROJ_DIR}extension_config.cmake
 
 BUILD_THREADS ?= $(shell sysctl -n hw.logicalcpu 2>/dev/null || nproc 2>/dev/null || echo 4)
