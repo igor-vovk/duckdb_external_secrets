@@ -9,8 +9,6 @@ The goal: let the secret values come from places that work well in Kubernetes, D
 environments. These platforms commonly attach secrets as environment variables or mounted text files; this extension 
 makes those forms usable as DuckDB secrets.
 
-Supported secret types include `s3`, `azure`, `gcs`, `r2`, `huggingface` and `postgres` secrets.
-
 ## Motivation
 
 In practice, there are two common ways to create secrets today:
@@ -124,13 +122,14 @@ stringData:
     {"key_id":"AKIA...","secret":"...","region":"eu-west-1"}
 ```
 
+Then in Deployment:
 ```yaml
 envFrom:
   - secretRef:
       name: duckdb-s3
 ```
 
-DuckDB SQL:
+DuckDB SQL to attach secret:
 
 ```sql
 CREATE SECRET warehouse_s3 (
@@ -140,7 +139,7 @@ CREATE SECRET warehouse_s3 (
 );
 ```
 
-Mounted file injection:
+Mounted file injection writes the `s3.yaml` key to `/secrets/s3.yaml` inside the container:
 
 ```yaml
 apiVersion: v1
@@ -156,9 +155,28 @@ stringData:
     key_id: AKIA...
     secret: ...
     region: eu-west-1
+
+---
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: duckdb
+spec:
+  containers:
+    - name: duckdb
+      image: duckdb/duckdb:latest
+      volumeMounts:
+        - name: duckdb-s3-secret
+          mountPath: /secrets
+          readOnly: true
+  volumes:
+    - name: duckdb-s3-secret
+      secret:
+        secretName: duckdb-s3-file
 ```
 
-Mount it at `/secrets`, then create the DuckDB secret from the file:
+Then attach DuckDB secret from the mounted file:
 
 ```sql
 CREATE SECRET warehouse_s3 (
@@ -253,13 +271,6 @@ Current SQL tests live in:
 - `test/sql/external_file_s3.test`
 - `test/sql/external_env_postgres.test`
 - `test/sql/external_file_postgres.test`
-
-Fixtures live in:
-
-- `test/local_test_env.mk`
-- `test/fixtures/s3_secret.json`
-- `test/fixtures/postgres_secret.yaml`
-
 ## Notes
 
 - Environment variable payloads are JSON only.
@@ -267,3 +278,5 @@ Fixtures live in:
 - The file provider requires `PATH`.
 - `FORMAT` accepts `auto`, `json`, `yaml`, or `yml`.
 - These providers create normal DuckDB secrets; they only change where the payload comes from.
+
+🦆
