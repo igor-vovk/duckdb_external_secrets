@@ -1,133 +1,217 @@
-# External Secrets for DuckDB
+# External Secrets for 🦆 DuckDB
 
+`external_secrets` extension adds two generic secret providers to DuckDB:
 
+- `env` supports loading secret payloads from environment variables.
+- `file` supports loading secret payloads from JSON or YAML files.
 
-`external_secrets` adds generic secret providers to DuckDB so secrets can be sourced outside SQL text and reused across
-built-in DuckDB secret types.
+The goal: let the secret values come from places that work well in Kubernetes, Docker, CI, and other container-based 
+environments. These platforms commonly attach secrets as environment variables or mounted text files; this extension 
+makes those forms usable as DuckDB secrets.
 
-The extension provides:
-
-- Secret loading from environment variables
-- Loading secrets from `yaml` or `json` files
-- `PROVIDER file` for `s3`, `azure`, `gcs`, `r2`, `huggingface`, and `postgres`
-- JSON-decoded secret payloads from environment variables
-- JSON and YAML file payloads loaded from disk
-- a default env var naming convention of `DUCKDB_SECRET_<secret_name>`
-- an `ENV_VAR '...'` override when the secret name should not determine the env var name
-- a required `PATH '...'` option for file-backed secrets
-- optional file format detection from `.json`, `.yaml`, or `.yml`
+Supported secret types include `s3`, `azure`, `gcs`, `r2`, `huggingface` and `postgres` secrets.
 
 ## Motivation
 
-DuckDB supports 2 main ways of creating secrets:
-* via SQL-query `CREATE SECRET`, with specifying secret details such as sensitive tokens in the SQL query itself. 
-  This is often suboptimal, because sql queries can be logged, or 
-but in many setups the secret values themselves should come from an external
-source instead of being embedded directly in SQL or stored in DuckDB-managed binary secret files.
+In practice, there are two common ways to create secrets today:
 
-This extension keeps the DuckDB secret model, but lets the actual payload come from another provider.
+- `CREATE SECRET` SQL statement, where the credentials are written directly in SQL.
+- `CREATE PERSISTENT SECRET`, where DuckDB stores the secret under `~/.duckdb/stored_secrets`.
 
-## Env provider
+Both are problematic for containerized deployments (and
+with [Quack](https://duckdb.org/library/super-secret-next-big-thing-for-duckdb/) this is where everything seem to be
+going). Pasting secrets in plain SQL can be logged, copied into notebooks, or checked into scripts by accident. 
+Persistent secrets avoid this, but DuckDB stores them as binary files, which makes them hard to manage with tools that
+expect plain structured secret values (Kubernetes `Secret` definitions, Docker-Compose files, env-files etc.).
 
-The `env` provider reads a JSON object from an environment variable and maps the top-level keys into the created DuckDB
-secret.
+Most deployment systems already know how to pass a secret like this:
 
-Default lookup:
+```yaml
+type: s3
+name: warehouse_s3
+scope: s3://warehouse/
+key_id: AKIA...
+secret: ...
+region: eu-west-1
+```
 
+`external_secrets` bridges that gap. DuckDB still sees a normal typed secret, while the runtime provides the payload as
+JSON or YAML.
+
+See also DuckDB's Secrets Manager documentation:
+https://duckdb.org/docs/current/configuration/secrets_manager.html
+
+## Quick start: environment variable
+
+The `env` provider reads a JSON object from an environment variable and maps the top-level keys into the DuckDB secret.
+
+```sh
+export DUCKDB_SECRET_warehouse_s3='{"key_id":"AKIA...","secret":"...","region":"eu-west-1"}'
+```
+
+In DuckDB:
 ```sql
-CREATE SECRET my_s3 (
+CREATE SECRET warehouse_s3 (
     TYPE s3,
     PROVIDER env,
-    SCOPE 's3://my-bucket/'
+    SCOPE 's3://warehouse/'
 );
 ```
 
-It looks for env variables with `DUCKDB_SECRET_` prefix ending with the name of the secret, e.g., `DUCKDB_SECRET_MY_S3`
+By default, the provider looks for `DUCKDB_SECRET_<secret_name_uppercase>`, in this case `DUCKDB_SECRET_WAREHOUSE_S3`.
 
-Env variables can be passed explicitly:
+There is `ENV_VAR` option when the environment variable name should not depend on the DuckDB secret name:
 
 ```sql
-CREATE SECRET bucket_access_secret (
+CREATE SECRET warehouse_s3 (
     TYPE s3,
     PROVIDER env,
-    ENV_VAR 'DUCKDB_SECRET_S3_ENV_SECRET',
-    SCOPE 's3://my-bucket/'
+    ENV_VAR 'AWS_WAREHOUSE_SECRET',
+    SCOPE 's3://warehouse/'
 );
 ```
 
-Example payload:
+Environment variable payloads must be JSON objects.
 
-```json
-{
-  "key_id": "abc123",
-  "secret": "shhh"
-}
+## Quick start: JSON/YAML file
+
+The `file` provider reads a secret payload from disk. 
+
+`/secrets/s3.yaml`:
+```yaml
+type: s3
+name: warehouse_s3
+scope: s3://warehouse/
+key_id: AKIA...
+secret: ...
+region: eu-west-1
 ```
 
-The provider currently expects the environment variable payload to be a JSON object.
+Then in DuckDB:
+```sql
+CREATE SECRET warehouse_s3 (
+    TYPE s3,
+    PROVIDER file,
+    PATH '/secrets/s3.yaml'
+);
+```
 
-## File provider
+`PATH` is required. `FORMAT` is optional:
 
-The `file` provider reads a secret payload from a file on disk.
+```sql
+CREATE SECRET warehouse_s3 (
+    TYPE s3,
+    PROVIDER file,
+    PATH '/secrets/s3-secret',
+    FORMAT 'yaml'
+);
+```
 
-Supported formats:
+If `FORMAT` is omitted or set to `auto`, the extension infers the format from the file extension.
 
-- JSON object payloads
-- YAML mappings
+## Kubernetes examples
 
-The file provider requires `PATH '...'` and optionally accepts `FORMAT 'json'` or `FORMAT 'yaml'`. If `FORMAT` is
-omitted, the extension infers the format from the file extension.
+Environment variable injection:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: duckdb-s3
+type: Opaque
+stringData:
+  DUCKDB_SECRET_WAREHOUSE_S3: |
+    {"key_id":"AKIA...","secret":"...","region":"eu-west-1"}
+```
+
+```yaml
+envFrom:
+  - secretRef:
+      name: duckdb-s3
+```
+
+DuckDB SQL:
+
+```sql
+CREATE SECRET warehouse_s3 (
+    TYPE s3,
+    PROVIDER env,
+    SCOPE 's3://warehouse/'
+);
+```
+
+Mounted file injection:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: duckdb-s3-file
+type: Opaque
+stringData:
+  s3.yaml: |
+    type: s3
+    name: warehouse_s3
+    scope: s3://warehouse/
+    key_id: AKIA...
+    secret: ...
+    region: eu-west-1
+```
+
+Mount it at `/secrets`, then create the DuckDB secret from the file:
+
+```sql
+CREATE SECRET warehouse_s3 (
+    TYPE s3,
+    PROVIDER file,
+    PATH '/secrets/s3.yaml'
+);
+```
+
+This keeps the SQL stable while the deployment platform owns the secret value.
+
+## Payload format
+
+Payloads are mappings. Top-level keys become DuckDB secret key/value pairs, with a few metadata keys handled specially.
+
+- `type` is optional metadata and is validated against the requested DuckDB secret type when present.
+- `name` is optional metadata and is ignored by the provider.
+- `provider` is optional metadata and is ignored by the provider.
+- `scope` is optional metadata and is used when the SQL statement does not specify `SCOPE`.
 
 JSON example:
 
-```sql
-CREATE SECRET bucket_file_secret (
-    TYPE s3,
-    PROVIDER file,
-    PATH 'test/fixtures/s3_secret.json'
-);
+```json
+{
+  "type": "s3",
+  "name": "warehouse_s3",
+  "scope": "s3://warehouse/",
+  "key_id": "AKIA...",
+  "secret": "...",
+  "region": "eu-west-1"
+}
 ```
 
 YAML example:
 
-```sql
-CREATE SECRET postgres_file_secret (
-    TYPE postgres,
-    PROVIDER file,
-    PATH 'test/fixtures/postgres_secret.yaml'
-);
-```
-
-The file payload can include dbt-style metadata keys such as:
-
-- `type`
-- `name`
-- `scope`
-
-Current normalization rules:
-
-- `type` is validated against the requested DuckDB secret type
-- `name` is treated as metadata and ignored
-- `scope` is used when SQL scope is omitted
-- the remaining top-level keys become secret key/value pairs
-
-Example YAML payload:
-
 ```yaml
 type: postgres
-name: reporting_db_secret
+name: reporting_db
 scope:
-  - postgres://yaml-host/
-host: yaml-host
+  - postgres://primary/
+  - postgres://replica/
+host: postgres.example.com
 port: 5432
-database: yaml_db
-user: yaml_user
-password: yaml_password
+database: analytics
+user: duckdb
+password: ...
 ```
+
+If both SQL and the payload specify `scope`, the SQL `SCOPE` wins.
 
 ## Supported secret types
 
-The extension currently registers `PROVIDER env` and `PROVIDER file` for:
+The extension registers `PROVIDER env` and `PROVIDER file` for:
 
 - `s3`
 - `azure`
@@ -136,50 +220,25 @@ The extension currently registers `PROVIDER env` and `PROVIDER file` for:
 - `huggingface`
 - `postgres`
 
-The underlying DuckDB extension for the secret type still needs to exist when applicable. For example:
+The underlying DuckDB extension for the secret type still needs to be available when DuckDB requires one. For example:
 
-- `s3` support comes from `httpfs`
-- `postgres` support comes from `postgres`
+- `s3`, `gcs`, `r2`, and `huggingface` are provided by DuckDB's `httpfs` extension.
+- `postgres` is provided by DuckDB's `postgres` extension.
 
-## Tests
+The `http` secret type is intentionally not registered here because DuckDB already has a built-in `http/env` provider.
 
-Current SQL tests live in:
+## Build and test
 
-- `test/sql/external_env_s3.test`
-- `test/sql/external_file_s3.test`
-- `test/sql/external_env_postgres.test`
-- `test/sql/external_file_postgres.test`
-
-They cover:
-
-- explicit `ENV_VAR '...'`
-- implicit env var name resolution from the secret name
-- missing env var handling
-- JSON file lookup
-- YAML file lookup
-- missing file handling
-- scope resolution through `which_secret(...)`
-
-Test fixtures are provided through:
-
-- `test/local_test_env.mk`
-- `test/fixtures/s3_secret.json`
-- `test/fixtures/postgres_secret.yaml`
-
-The `Makefile` includes that file only for test-related targets.
-
-Run tests with:
-
-```sh
-make test
-```
-
-## Build
-
-Build the extension with:
+Build the extension:
 
 ```sh
 make
+```
+
+Run SQL tests:
+
+```sh
+make test
 ```
 
 Useful targets:
@@ -188,12 +247,23 @@ Useful targets:
 - `make test`
 - `make test_debug`
 
-## Roadmap
+Current SQL tests live in:
 
-The extension is now provider-oriented rather than env-only.
+- `test/sql/external_env_s3.test`
+- `test/sql/external_file_s3.test`
+- `test/sql/external_env_postgres.test`
+- `test/sql/external_file_postgres.test`
 
-Near-term direction:
+Fixtures live in:
 
-- refine the file-provider payload conventions as more dbt/Kubernetes use-cases come in
-- keep provider parsing separate from secret-object construction
-- expand coverage for additional supported DuckDB secret types if needed
+- `test/local_test_env.mk`
+- `test/fixtures/s3_secret.json`
+- `test/fixtures/postgres_secret.yaml`
+
+## Notes
+
+- Environment variable payloads are JSON only.
+- File payloads can be JSON or YAML.
+- The file provider requires `PATH`.
+- `FORMAT` accepts `auto`, `json`, `yaml`, or `yml`.
+- These providers create normal DuckDB secrets; they only change where the payload comes from.
