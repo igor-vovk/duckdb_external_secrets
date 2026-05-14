@@ -1,0 +1,37 @@
+# name: test/sql/external_file_s3.test
+# description: test external_secrets file provider with s3 secrets
+# group: [sql, secrets]
+
+require external_secrets
+
+statement ok
+INSTALL httpfs;
+
+statement ok
+LOAD httpfs;
+
+# File-based lookup should fail clearly when the configured path is missing.
+statement error
+CREATE SECRET missing_file_secret (TYPE s3, PROVIDER file, PATH 'test/fixtures/missing_s3_secret.json');
+----
+Invalid Input Error: Secret file 'test/fixtures/missing_s3_secret.json' was not found for secret 'missing_file_secret'
+
+# JSON file payloads should support dbt-style metadata keys like type, name, and scope.
+statement ok
+CREATE SECRET bucket_file_secret (TYPE s3, PROVIDER file, PATH 'test/fixtures/s3_secret.json')
+
+# The file-provided scope should be used when SQL scope is omitted.
+query I
+SELECT name FROM which_secret('s3://from-file/path/file.parquet', 's3');
+----
+bucket_file_secret
+
+# The JSON file payload should decode into the stored s3 secret values.
+query I
+SELECT sum(#1 IN ('key_id=json-key', 'region=us-east-1', 'secret=json-secret')) FROM (
+    SELECT unnest(secret_string.split(';'))
+    FROM duckdb_secrets()
+    WHERE name = 'bucket_file_secret'
+);
+----
+3

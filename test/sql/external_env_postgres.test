@@ -1,4 +1,4 @@
-# name: test/sql/external_secrets_postgres.test
+# name: test/sql/external_env_postgres.test
 # description: test external_secrets env provider with postgres secrets
 # group: [sql, secrets]
 

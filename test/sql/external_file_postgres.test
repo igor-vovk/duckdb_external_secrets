@@ -1,0 +1,31 @@
+# name: test/sql/external_file_postgres.test
+# description: test external_secrets file provider with postgres secrets
+# group: [sql, secrets]
+
+require external_secrets
+
+statement ok
+INSTALL postgres;
+
+statement ok
+LOAD postgres;
+
+# YAML file payloads should support dbt-style metadata keys like type, name, and scope.
+statement ok
+CREATE SECRET postgres_file_secret (TYPE postgres, PROVIDER file, PATH 'test/fixtures/postgres_secret.yaml')
+
+# The file-provided YAML scope should be used when SQL scope is omitted.
+query I
+SELECT name FROM which_secret('postgres://yaml-host/yaml_db', 'postgres');
+----
+postgres_file_secret
+
+# The YAML file payload should decode into the stored postgres secret values.
+query I
+SELECT sum(#1 IN ('database=yaml_db', 'host=yaml-host', 'password=yaml_password', 'port=5432', 'user=yaml_user')) FROM (
+    SELECT unnest(secret_string.split(';'))
+    FROM duckdb_secrets()
+    WHERE name = 'postgres_file_secret'
+);
+----
+5
