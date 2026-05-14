@@ -1,6 +1,6 @@
 # name: test/sql/external_env_postgres.test
 # description: test external_secrets env provider with postgres secrets
-# group: [sql, secrets]
+# group: [sql]
 
 require-env DUCKDB_SECRET_POSTGRES_ENV_SECRET
 

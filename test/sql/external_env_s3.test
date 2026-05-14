@@ -1,6 +1,6 @@
 # name: test/sql/external_env_s3.test
 # description: test external_secrets env provider with s3 secrets
-# group: [sql, secrets]
+# group: [sql]
 
 require-env DUCKDB_SECRET_S3_ENV_SECRET
 

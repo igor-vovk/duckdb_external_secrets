@@ -8,6 +8,11 @@ BUILD_THREADS ?= $(shell sysctl -n hw.logicalcpu 2>/dev/null || nproc 2>/dev/nul
 export CMAKE_BUILD_PARALLEL_LEVEL ?= $(BUILD_THREADS)
 ENABLE_EXTENSION_AUTOLOADING ?= 1
 ENABLE_EXTENSION_AUTOINSTALL ?= 1
+FMT_UV_DEPS := --with 'black>=24' --with 'clang-format==11.0.1' --with 'cmake-format'
+
+.PHONY: fmt
+fmt:
+	uv run --isolated $(FMT_UV_DEPS) python duckdb/scripts/format.py --all --fix --noconfirm --directories src test
 
 TEST_ENV_MAKEFILE ?= $(PROJ_DIR)test/local_test_env.mk
 TEST_GOALS := test test_release test_release_internal test_debug test_debug_internal test_reldebug test_reldebug_internal

@@ -143,7 +143,8 @@ static string StripInlineComment(const string &value) {
 }
 
 static string UnquoteYAMLScalar(const string &value) {
-	if (value.size() >= 2 && ((value.front() == '\'' && value.back() == '\'') || (value.front() == '"' && value.back() == '"'))) {
+	if (value.size() >= 2 &&
+	    ((value.front() == '\'' && value.back() == '\'') || (value.front() == '"' && value.back() == '"'))) {
 		return value.substr(1, value.size() - 2);
 	}
 	return value;
@@ -430,7 +431,8 @@ static vector<string> ParseScopeValue(const YAMLValue &node) {
 
 static void ApplyMetadataOption(const CreateSecretInput &input, ParsedSecretPayload &payload) {
 	auto type_option = payload.values.find("type");
-	if (type_option != payload.values.end() && !StringUtil::CIEquals(StringValue::Get(type_option->second), input.type)) {
+	if (type_option != payload.values.end() &&
+	    !StringUtil::CIEquals(StringValue::Get(type_option->second), input.type)) {
 		throw InvalidInputException("Secret file type '%s' does not match requested type '%s'",
 		                            StringValue::Get(type_option->second), input.type);
 	}
@@ -498,7 +500,8 @@ static ParsedSecretPayload ParseYAMLSecretPayload(const CreateSecretInput &input
 			if (entry.second.type != YAMLValue::Type::SCALAR ||
 			    !StringUtil::CIEquals(entry.second.scalar_value, input.type)) {
 				throw InvalidInputException("Secret file type '%s' does not match requested type '%s'",
-				                            entry.second.type == YAMLValue::Type::SCALAR ? entry.second.scalar_value : "<non-scalar>",
+				                            entry.second.type == YAMLValue::Type::SCALAR ? entry.second.scalar_value
+				                                                                         : "<non-scalar>",
 				                            input.type);
 			}
 			continue;
@@ -517,8 +520,8 @@ static ParsedSecretPayload ParseYAMLSecretPayload(const CreateSecretInput &input
 static string ResolveSecretFilePath(const CreateSecretInput &input) {
 	auto option = input.options.find(EXTERNAL_SECRET_FILE_PATH_OPTION);
 	if (option == input.options.end()) {
-		throw InvalidInputException("Secret option '%s' is required for provider '%s'", EXTERNAL_SECRET_FILE_PATH_OPTION,
-		                            EXTERNAL_SECRET_PROVIDER_FILE);
+		throw InvalidInputException("Secret option '%s' is required for provider '%s'",
+		                            EXTERNAL_SECRET_FILE_PATH_OPTION, EXTERNAL_SECRET_PROVIDER_FILE);
 	}
 	auto path = StringValue::Get(option->second);
 	if (path.empty()) {

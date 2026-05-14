@@ -1,6 +1,6 @@
 # name: test/sql/external_file_s3.test
 # description: test external_secrets file provider with s3 secrets
-# group: [sql, secrets]
+# group: [sql]
 
 require external_secrets
 
