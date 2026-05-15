@@ -1,0 +1,77 @@
+name: Publish GitHub Pages
+on:
+  workflow_run:
+    workflows:
+      - Main Extension Distribution Pipeline
+    types:
+      - completed
+
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Download extension artifacts
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+          path: artifacts
+
+      - name: Assemble Pages repository
+        shell: bash
+        run: |
+          mkdir -p site
+          touch site/.nojekyll
+          while IFS= read -r artifact; do
+            rel="${artifact#*/repository/}"
+            mkdir -p "site/$(dirname "$rel")"
+            cp "$artifact" "site/$rel"
+          done < <(find artifacts -type f \( -name '*.duckdb_extension' -o -name '*.duckdb_extension.wasm' \) | sort)
+          cat > site/index.html <<'EOF'
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>external_secrets DuckDB extension repository</title>
+          </head>
+          <body>
+            <h1>external_secrets DuckDB extension repository</h1>
+            <p>This site hosts unsigned DuckDB extension binaries built from the GitHub repository.</p>
+            <p>Use it as a custom extension repository, for example:</p>
+            <pre><code>INSTALL external_secrets FROM 'https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}';
+LOAD external_secrets;</code></pre>
+            <p>The per-version and per-platform binaries live under paths like <code>v1.5.2/osx_arm64/external_secrets.duckdb_extension</code>.</p>
+          </body>
+          </html>
+          EOF
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
