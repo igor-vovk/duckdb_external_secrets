@@ -61,7 +61,7 @@ jobs:
             <p>This site hosts unsigned DuckDB extension binaries built from the GitHub repository.</p>
             <p>Use it as a custom extension repository, for example:</p>
             <pre><code>INSTALL external_secrets FROM 'https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}';
-LOAD external_secrets;</code></pre>
+              LOAD external_secrets;</code></pre>
             <p>The per-version and per-platform binaries live under paths like <code>v1.5.2/osx_arm64/external_secrets.duckdb_extension</code>.</p>
           </body>
           </html>

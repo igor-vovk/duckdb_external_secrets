@@ -266,10 +266,8 @@ This repository publishes built extension binaries to GitHub Pages as a custom D
 Then DuckDB can install the exsension from:
 
 ```sql
-INSTALL
-external_secrets FROM 'https://igor-vovk.github.io/duckdb_external_secrets/';
-LOAD
-external_secrets;
+INSTALL external_secrets FROM 'https://igor-vovk.github.io/duckdb_external_secrets/';
+LOAD external_secrets;
 ```
 
 The published binaries are unsigned, so local development and self-hosted use may require enabling unsigned extensions.
