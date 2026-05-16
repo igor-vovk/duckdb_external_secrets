@@ -43,11 +43,9 @@ jobs:
         run: |
           mkdir -p site
           touch site/.nojekyll
-          while IFS= read -r artifact; do
-            rel="${artifact#*/repository/}"
-            mkdir -p "site/$(dirname "$rel")"
-            cp "$artifact" "site/$rel"
-          done < <(find artifacts -type f \( -name '*.duckdb_extension' -o -name '*.duckdb_extension.wasm' \) | sort)
+          while IFS= read -r version_dir; do
+            cp -R "$version_dir" "site/"
+          done < <(find artifacts -mindepth 2 -maxdepth 2 -type d -name 'v*' | sort)
           cat > site/index.html <<'EOF'
           <!doctype html>
           <html lang="en">
