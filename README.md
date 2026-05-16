@@ -245,6 +245,31 @@ The underlying DuckDB extension for the secret type still needs to be available 
 
 The `http` secret type is intentionally not registered here because DuckDB already has a built-in `http/env` provider.
 
+## Usage
+
+### Install from GitHub Pages
+
+This repository publishes built extension binaries to GitHub Pages as a custom DuckDB extension repository:
+
+```sql
+INSTALL external_secrets FROM 'https://igor-vovk.github.io/duckdb_external_secrets/';
+LOAD external_secrets;
+```
+
+The published binaries are unsigned, so duckdb needs to be running with `-unsigned` option.
+
+### Load a locally built binary
+
+After running `make`, the built extension can be loaded directly from the local build output:
+
+```sql
+LOAD './build/release/extension/external_secrets/external_secrets.duckdb_extension';
+```
+
+## Supported DuckDB versions
+
+At the moment, this extension is built and published for DuckDB `v1.5.2`.
+
 ## Build and test
 
 Build the extension:
@@ -258,19 +283,6 @@ Run SQL tests:
 ```sh
 make test
 ```
-
-## GitHub Pages repository
-
-This repository publishes built extension binaries to GitHub Pages as a custom DuckDB extension repository.
-
-Then DuckDB can install the exsension from:
-
-```sql
-INSTALL external_secrets FROM 'https://igor-vovk.github.io/duckdb_external_secrets/';
-LOAD external_secrets;
-```
-
-The published binaries are unsigned, so local development and self-hosted use may require enabling unsigned extensions.
 
 Useful targets:
 
